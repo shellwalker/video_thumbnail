@@ -1,6 +1,8 @@
 package xyz.justsoft.video_thumbnail;
 
+import android.app.Activity;
 import android.content.ContentResolver;
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Canvas;
@@ -9,6 +11,7 @@ import android.graphics.Rect;
 import android.media.ExifInterface;
 import android.media.MediaMetadataRetriever;
 import android.net.Uri;
+import android.os.AsyncTask;
 import android.os.ParcelFileDescriptor;
 import android.provider.MediaStore;
 import android.util.Log;
@@ -18,9 +21,12 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.ByteArrayOutputStream;
 import java.io.FileOutputStream;
+import java.lang.ref.WeakReference;
+import java.nio.ByteBuffer;
 import java.util.Map;
 import java.util.HashMap;
 
+import io.flutter.plugin.common.BinaryMessenger;
 import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
@@ -34,16 +40,37 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
     private static String TAG = "ThumbnailPlugin";
     private static final int HIGH_QUALITY_MIN_VAL = 70;
 
+    private final MethodChannel channel;
+    private final Activity activity;
+    private final Context context;
+    private final BinaryMessenger messenger;
+    private Result pendingResult;
+    private MethodCall methodCall;
+
+    private VideoThumbnailPlugin(Activity activity, Context context, MethodChannel channel, BinaryMessenger messenger) {
+        this.activity = activity;
+        this.context = context;
+        this.channel = channel;
+        this.messenger = messenger;
+    }
+
+
     /**
      * Plugin registration.
      */
     public static void registerWith(Registrar registrar) {
         final MethodChannel channel = new MethodChannel(registrar.messenger(), "video_thumbnail");
-        channel.setMethodCallHandler(new VideoThumbnailPlugin());
+        VideoThumbnailPlugin instance = new VideoThumbnailPlugin(registrar.activity(), registrar.context(), channel, registrar.messenger());
+        channel.setMethodCallHandler(instance);
     }
 
     @Override
     public void onMethodCall(MethodCall call, Result result) {
+        if (!setPendingMethodCallAndResult(call, result)) {
+            finishWithAlreadyActiveError(result);
+            return;
+        }
+
         final Map<String, Object> args = call.arguments();
 
         try {
@@ -54,9 +81,13 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
 
             if (call.method.equals("file")) {
                 final String path = (String) args.get("path");
-                result.success(buildThumbnailFile(video, path, format, maxhow, quality));
+                ThumbnailFileTask task = new ThumbnailFileTask(this.activity, this.messenger, video, path, format, maxhow, quality);
+                task.execute();
+                finishWithSuccess();
             } else if (call.method.equals("data")) {
-                result.success(buildThumbnailData(video, format, maxhow, quality));
+                ThumbnailDataTask task = new ThumbnailDataTask(this.activity, this.messenger, video, format, maxhow, quality);
+                task.execute();
+                finishWithSuccess();
             } else {
                 result.notImplemented();
             }
@@ -68,29 +99,102 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
 
     private static Bitmap.CompressFormat intToFormat(int format) {
         switch (format) {
-        default:
-        case 0:
-            return Bitmap.CompressFormat.JPEG;
-        case 1:
-            return Bitmap.CompressFormat.PNG;
-        case 2:
-            return Bitmap.CompressFormat.WEBP;
+            default:
+            case 0:
+                return Bitmap.CompressFormat.JPEG;
+            case 1:
+                return Bitmap.CompressFormat.PNG;
+            case 2:
+                return Bitmap.CompressFormat.WEBP;
         }
     }
 
     private static String formatExt(int format) {
         switch (format) {
-        default:
-        case 0:
-            return new String("jpg");
-        case 1:
-            return new String("png");
-        case 2:
-            return new String("webp");
+            default:
+            case 0:
+                return new String("jpg");
+            case 1:
+                return new String("png");
+            case 2:
+                return new String("webp");
         }
     }
 
-    private byte[] buildThumbnailData(String vidPath, int format, int maxhow, int quality) {
+    private static class ThumbnailDataTask extends AsyncTask<String, Void, ByteBuffer> {
+        private WeakReference<Activity> activityReference;
+        BinaryMessenger messenger;
+        final String vidPath;
+        final int format;
+        final int maxhow;
+        final int quality;
+
+        public ThumbnailDataTask(Activity context, BinaryMessenger messenger, String vidPath, int format, int maxhow, int quality) {
+            super();
+            this.messenger = messenger;
+            this.vidPath = vidPath;
+            this.format = format;
+            this.maxhow = maxhow;
+            this.quality = quality;
+            this.activityReference = new WeakReference<>(context);
+        }
+
+        @Override
+        protected ByteBuffer doInBackground(String... strings) {
+            byte[] bytesArray = buildThumbnailData(vidPath, format, maxhow, quality);
+
+            assert bytesArray != null;
+            final ByteBuffer buffer = ByteBuffer.allocateDirect(bytesArray.length);
+            buffer.put(bytesArray);
+            return buffer;
+        }
+
+        @Override
+        protected void onPostExecute(ByteBuffer buffer) {
+            super.onPostExecute(buffer);
+            this.messenger.send("video_thumbnail/data/" + this.vidPath, buffer);
+            buffer.clear();
+        }
+    }
+
+    private static class ThumbnailFileTask extends AsyncTask<String, Void, ByteBuffer> {
+        private WeakReference<Activity> activityReference;
+        BinaryMessenger messenger;
+        final String vidPath;
+        final String path;
+        final int format;
+        final int maxhow;
+        final int quality;
+
+        public ThumbnailFileTask(Activity context, BinaryMessenger messenger, String vidPath, String path, int format, int maxhow, int quality) {
+            super();
+            this.messenger = messenger;
+            this.vidPath = vidPath;
+            this.path = path;
+            this.format = format;
+            this.maxhow = maxhow;
+            this.quality = quality;
+            this.activityReference = new WeakReference<>(context);
+        }
+
+
+        @Override
+        protected ByteBuffer doInBackground(String... strings) {
+            String filePath = buildThumbnailFile(vidPath, path, format, maxhow, quality);
+            final ByteBuffer buffer = ByteBuffer.allocateDirect(filePath.length());
+            buffer.put(filePath.getBytes());
+            return buffer;
+        }
+
+        @Override
+        protected void onPostExecute(ByteBuffer buffer) {
+            super.onPostExecute(buffer);
+            this.messenger.send("video_thumbnail/file/" + this.vidPath, buffer);
+            buffer.clear();
+        }
+    }
+
+    private static byte[] buildThumbnailData(String vidPath, int format, int maxhow, int quality) {
         Log.d(TAG, String.format("buildThumbnailData( format:%d, maxhow:%d, quality:%d )", format, maxhow, quality));
         Bitmap bitmap = createVideoThumbnail(vidPath, maxhow);
         if (bitmap == null)
@@ -104,7 +208,7 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
         return stream.toByteArray();
     }
 
-    private String buildThumbnailFile(String vidPath, String path, int format, int maxhow, int quality) {
+    private static String buildThumbnailFile(String vidPath, String path, int format, int maxhow, int quality) {
         Log.d(TAG, String.format("buildThumbnailFile( format:%d, maxhow:%d, quality:%d )", format, maxhow, quality));
         final byte bytes[] = buildThumbnailData(vidPath, format, maxhow, quality);
         final String ext = formatExt(format);
@@ -182,5 +286,39 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
             bitmap = Bitmap.createScaledBitmap(bitmap, w, h, true);
         }
         return bitmap;
+    }
+
+    private void finishWithSuccess() {
+        if (pendingResult != null) {
+            pendingResult.success(true);
+        }
+        clearMethodCallAndResult();
+    }
+
+    private void finishWithSuccess(String path) {
+        if (pendingResult != null)
+            pendingResult.success(path);
+        clearMethodCallAndResult();
+    }
+
+    private void clearMethodCallAndResult() {
+        methodCall = null;
+        pendingResult = null;
+    }
+
+    private void finishWithAlreadyActiveError(MethodChannel.Result result) {
+        if (result != null)
+            result.error("already_active", "Image picker is already active", null);
+    }
+
+    private boolean setPendingMethodCallAndResult(
+            MethodCall methodCall, MethodChannel.Result result) {
+        if (pendingResult != null) {
+            return false;
+        }
+
+        this.methodCall = methodCall;
+        pendingResult = result;
+        return true;
     }
 }

@@ -246,11 +246,11 @@ class _MyAppState extends State<MyApp> {
                   _imageInData = Image.memory(thumbnail)
                     ..image
                         .resolve(ImageConfiguration())
-                        .addListener((ImageInfo info, bool _) {
+                        .addListener(new ImageStreamListener((ImageInfo info, bool _) {
                       setState(() {
                         _uiImageInData = info.image;
                       });
-                    });
+                    }));
                 },
                 child: const Text("Data"),
               ),
@@ -285,11 +285,11 @@ class _MyAppState extends State<MyApp> {
                   _imageInFile = Image.memory(bytes)
                     ..image
                         .resolve(ImageConfiguration())
-                        .addListener((ImageInfo info, bool _) {
+                        .addListener(new ImageStreamListener((ImageInfo info, bool _) {
                       setState(() {
                         _uiImageInFile = info.image;
                       });
-                    });
+                    }));
                 },
                 child: const Text("File"),
               ),
