@@ -19,7 +19,9 @@ This plugin generates thumbnail from video file or URL.  It returns image in mem
 add [video_thumbnail](https://pub.dev/packages/video_thumbnail) as a dependency in your pubspec.yaml file.
 ```yaml
 dependencies:
-  video_thumbnail: ^0.1.5+1
+  video_thumbnail:
+    git:
+      url: git@github.com:shellwalker/video_thumbnail.git
 ```
 **import**
 ```dart
