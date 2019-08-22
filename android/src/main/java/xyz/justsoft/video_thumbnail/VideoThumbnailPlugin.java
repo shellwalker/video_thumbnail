@@ -141,19 +141,28 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
 
         @Override
         protected ByteBuffer doInBackground(String... strings) {
-            byte[] bytesArray = buildThumbnailData(vidPath, format, maxhow, quality);
+            try {
+                // get a reference to the activity if it is still there
+                Activity activity = activityReference.get();
+                if (activity == null || activity.isFinishing()) return null;
 
-            assert bytesArray != null;
-            final ByteBuffer buffer = ByteBuffer.allocateDirect(bytesArray.length);
-            buffer.put(bytesArray);
-            return buffer;
+                byte[] bytesArray = buildThumbnailData(vidPath, format, maxhow, quality);
+                final ByteBuffer buffer = ByteBuffer.allocateDirect(bytesArray.length);
+                buffer.put(bytesArray);
+                return buffer;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return null;
         }
 
         @Override
         protected void onPostExecute(ByteBuffer buffer) {
             super.onPostExecute(buffer);
-            this.messenger.send("video_thumbnail/data/" + this.vidPath, buffer);
-            buffer.clear();
+            if (null != buffer) {
+                this.messenger.send("video_thumbnail/data/" + this.vidPath, buffer);
+                buffer.clear();
+            }
         }
     }
 
@@ -180,17 +189,28 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
 
         @Override
         protected ByteBuffer doInBackground(String... strings) {
-            String filePath = buildThumbnailFile(vidPath, path, format, maxhow, quality);
-            final ByteBuffer buffer = ByteBuffer.allocateDirect(filePath.length());
-            buffer.put(filePath.getBytes());
-            return buffer;
+            try {
+                // get a reference to the activity if it is still there
+                Activity activity = activityReference.get();
+                if (activity == null || activity.isFinishing()) return null;
+
+                String filePath = buildThumbnailFile(vidPath, path, format, maxhow, quality);
+                final ByteBuffer buffer = ByteBuffer.allocateDirect(filePath.length());
+                buffer.put(filePath.getBytes());
+                return buffer;
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+            return null;
         }
 
         @Override
         protected void onPostExecute(ByteBuffer buffer) {
             super.onPostExecute(buffer);
-            this.messenger.send("video_thumbnail/file/" + this.vidPath, buffer);
-            buffer.clear();
+            if (null != buffer) {
+                this.messenger.send("video_thumbnail/file/" + this.vidPath, buffer);
+                buffer.clear();
+            }
         }
     }
 
