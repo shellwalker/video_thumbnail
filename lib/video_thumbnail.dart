@@ -8,6 +8,7 @@
 ///
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
@@ -35,12 +36,13 @@ class VideoThumbnail {
       int quality}) async {
     assert(video != null && video.isNotEmpty);
     // Async receive file path from host
+    var randomWord = video.hashCode.toString() + Random().nextInt(1000000).toString();
     Completer completer = new Completer<String>();
-    defaultBinaryMessenger.setMessageHandler(_VIDEO_FILE_CHANNEL_PREFIX + video,
+    defaultBinaryMessenger.setMessageHandler(_VIDEO_FILE_CHANNEL_PREFIX + randomWord,
         (ByteData message) async {
       completer.complete(utf8.decode(message.buffer.asUint8List()));
       defaultBinaryMessenger.setMessageHandler(
-          _VIDEO_FILE_CHANNEL_PREFIX + video, null);
+          _VIDEO_FILE_CHANNEL_PREFIX + randomWord, null);
       return message;
     });
     final reqMap = <String, dynamic>{
@@ -48,7 +50,8 @@ class VideoThumbnail {
       'path': thumbnailPath,
       'format': imageFormat.index,
       'maxhow': maxHeightOrWidth,
-      'quality': quality
+      'quality': quality,
+      'randomword': randomWord
     };
     await _channel.invokeMethod('file', reqMap);
     return completer.future;
@@ -65,19 +68,21 @@ class VideoThumbnail {
       int quality}) async {
     assert(video != null && video.isNotEmpty);
     // Async receive data from host
+    var randomWord = video.hashCode.toString() + Random().nextInt(1000000).toString();
     Completer completer = new Completer<Uint8List>();
-    defaultBinaryMessenger.setMessageHandler(_VIDEO_DATA_CHANNEL_PREFIX + video,
+    defaultBinaryMessenger.setMessageHandler(_VIDEO_DATA_CHANNEL_PREFIX + randomWord,
         (ByteData message) async {
       completer.complete(message.buffer.asUint8List());
       defaultBinaryMessenger.setMessageHandler(
-          _VIDEO_DATA_CHANNEL_PREFIX + video, null);
+          _VIDEO_DATA_CHANNEL_PREFIX + randomWord, null);
       return message;
     });
     final reqMap = <String, dynamic>{
       'video': video,
       'format': imageFormat.index,
       'maxhow': maxHeightOrWidth,
-      'quality': quality
+      'quality': quality,
+      'randomword': randomWord
     };
     await _channel.invokeMethod('data', reqMap);
     return completer.future;

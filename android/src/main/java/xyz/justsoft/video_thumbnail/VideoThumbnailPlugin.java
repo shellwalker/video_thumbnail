@@ -78,14 +78,15 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
             final int format = (int) args.get("format");
             final int maxhow = (int) args.get("maxhow");
             final int quality = (int) args.get("quality");
+            final String randomWord = (String) args.get("randomword");
 
             if (call.method.equals("file")) {
                 final String path = (String) args.get("path");
-                ThumbnailFileTask task = new ThumbnailFileTask(this.activity, this.messenger, video, path, format, maxhow, quality);
+                ThumbnailFileTask task = new ThumbnailFileTask(this.activity, this.messenger, video, path, format, maxhow, quality, randomWord);
                 task.execute();
                 finishWithSuccess();
             } else if (call.method.equals("data")) {
-                ThumbnailDataTask task = new ThumbnailDataTask(this.activity, this.messenger, video, format, maxhow, quality);
+                ThumbnailDataTask task = new ThumbnailDataTask(this.activity, this.messenger, video, format, maxhow, quality, randomWord);
                 task.execute();
                 finishWithSuccess();
             } else {
@@ -128,14 +129,16 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
         final int format;
         final int maxhow;
         final int quality;
+        final String randomWord;
 
-        public ThumbnailDataTask(Activity context, BinaryMessenger messenger, String vidPath, int format, int maxhow, int quality) {
+        public ThumbnailDataTask(Activity context, BinaryMessenger messenger, String vidPath, int format, int maxhow, int quality, String randomWord) {
             super();
             this.messenger = messenger;
             this.vidPath = vidPath;
             this.format = format;
             this.maxhow = maxhow;
             this.quality = quality;
+            this.randomWord = randomWord;
             this.activityReference = new WeakReference<>(context);
         }
 
@@ -160,7 +163,7 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
         protected void onPostExecute(ByteBuffer buffer) {
             super.onPostExecute(buffer);
             if (null != buffer) {
-                this.messenger.send("video_thumbnail/data/" + this.vidPath, buffer);
+                this.messenger.send("video_thumbnail/data/" + this.randomWord, buffer);
                 buffer.clear();
             }
         }
@@ -174,8 +177,9 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
         final int format;
         final int maxhow;
         final int quality;
+        final String randomWord;
 
-        public ThumbnailFileTask(Activity context, BinaryMessenger messenger, String vidPath, String path, int format, int maxhow, int quality) {
+        public ThumbnailFileTask(Activity context, BinaryMessenger messenger, String vidPath, String path, int format, int maxhow, int quality, String randomWord) {
             super();
             this.messenger = messenger;
             this.vidPath = vidPath;
@@ -183,6 +187,7 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
             this.format = format;
             this.maxhow = maxhow;
             this.quality = quality;
+            this.randomWord = randomWord;
             this.activityReference = new WeakReference<>(context);
         }
 
@@ -208,7 +213,7 @@ public class VideoThumbnailPlugin implements MethodCallHandler {
         protected void onPostExecute(ByteBuffer buffer) {
             super.onPostExecute(buffer);
             if (null != buffer) {
-                this.messenger.send("video_thumbnail/file/" + this.vidPath, buffer);
+                this.messenger.send("video_thumbnail/file/" + this.randomWord, buffer);
                 buffer.clear();
             }
         }
